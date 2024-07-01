@@ -1,5 +1,43 @@
 import fs from 'fs'
 
+main()
+
+async function main() {
+  const ud = unitsWithDescrs()
+
+  fs.writeFileSync('output.json', JSON.stringify(ud, null, 2), {
+    encoding: 'utf-8'
+  })
+
+  console.log('end')
+}
+
+function unitsWithDescrs() {
+  const uMap = units()
+  const udMap = unitDescrs()
+
+  for (const [key, value] of uMap) {
+    const unit = key.replace(/_descr(_short)?$/, '')
+
+    const unitProps = udMap.get(unit)
+    if (unitProps === undefined) {
+      throw new Error(
+        `not found unit descr for: '${key}' (searched for '${unit}')`
+      )
+    }
+
+    if (key.endsWith('_descr_short')) {
+      unitProps.set('text_descr_short', value)
+    } else if (key.endsWith('_descr')) {
+      unitProps.set('text_descr', value.split('\\n').join('<br />'))
+    } else {
+      unitProps.set('text', value)
+    }
+  }
+
+  return mapToObject(udMap)
+}
+
 function units() {
   const unitsText = fs.readFileSync(
     'C:/Games/Rome - Total War/data/text/export_units.txt',
@@ -10,9 +48,6 @@ function units() {
 
   let units = new Map<string, string>()
   for (const m of unitsText.matchAll(/{(\w+)}(\s|\r\n)(.+)/gm)) {
-    // console.log(``)
-    // console.log(`Name: ${m[1]}`)
-    // console.log(`Val: ${m[3]}`)
     units.set(m[1], m[3])
   }
   return units
@@ -46,45 +81,19 @@ function unitDescrs() {
   return unitDescrs
 }
 
-async function main() {
-  const u = units()
-  const ud = unitDescrs()
+function mapToObject(map: Map<string, Map<string, string>>): object {
+  // Step 1: Convert the inner maps to plain objects
+  const outerObject: { [key: string]: { [key: string]: string } } = {}
 
-  for (const [key, value] of u) {
-    const unit = key.replace(/_descr(_short)?$/, '')
+  map.forEach((innerMap, key) => {
+    outerObject[key] = Object.fromEntries(innerMap)
+  })
 
-    const unitProps = ud.get(unit)
-    if (unitProps === undefined) {
-      throw new Error(
-        `not found unit descr for: '${key}' (searched for '${unit}')`
-      )
-    }
-
-    if (key.endsWith('_descr_short')) {
-      unitProps.set('text_descr_short', value)
-    } else if (key.endsWith('_descr')) {
-      unitProps.set('text_descr', value.split('\\n').join('<br />'))
-    } else {
-      unitProps.set('text', value)
-    }
-  }
-
-  Array.from(ud.entries()).map(
-    ([unitKey, unit]) =>
-      `<img src="">
-      <h1>${unit.get('text')}</h1> <p>${unit.get(
-        'text_descr_short'
-      )}</p><p>${unit.get('text_descr')}</p>`
+  // Step 2: Convert the outer map to a plain object
+  const resultObject = Object.fromEntries(
+    Object.entries(outerObject).map(([key, value]) => [key, value])
   )
 
-  //   console.log(
-  //     JSON.stringify(
-  //       Array.from(ud.get('carthaginian_generals_cavalry')!.entries()),
-  //       null,
-  //       2
-  //     )
-  //   )
-  //   console.log('OK')
+  // Step 3: Stringify the resulting plain object to JSON
+  return resultObject
 }
-
-main()
